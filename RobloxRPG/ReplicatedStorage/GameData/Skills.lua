@@ -1,0 +1,1 @@
+return {Warrior={Slash={Damage=25,Cooldown=3}}}

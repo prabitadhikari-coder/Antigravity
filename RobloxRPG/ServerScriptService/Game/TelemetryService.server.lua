@@ -1,0 +1,1 @@
+return {Log=function(_,e,d) print('[TEL]',e,d) end}
