@@ -53,7 +53,8 @@ function D:Load(p)
     D.SessionData[p.UserId] = data
 end
 
-function D:Save(p)
+function D:Save(p, final)
+    if not D.SessionData then return end
     local session = D.SessionData[p.UserId]
     if not session then return end
     
@@ -70,9 +71,11 @@ function D:Save(p)
     
     if not success then
         warn("Failed to save data for " .. p.Name .. ": " .. err)
-    else
-        -- Clean up session
+    end
+    
+    if final then
         D.SessionData[p.UserId] = nil
+        print("Data saved & session closed for " .. p.Name)
     end
 end
 

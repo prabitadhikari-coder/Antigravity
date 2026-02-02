@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inscryption-like Card Game</title>
+    <link rel="stylesheet" href="src/styles/main.css">
+</head>
+
+<body>
+    <div id="top-bar">
+        <span>Teeth: <span id="currency-display">0</span></span>
+        <div id="game-status" style="font-weight:bold; color:#ffcc00;"></div>
+        <button id="home-btn" class="nav-btn" style="display:none;">Home</button>
+    </div>
+
+    <!-- HOME SCREEN -->
+    <div id="home-screen" class="screen">
+        <h1>Into the Shadows</h1>
+        <div class="menu-options">
+            <button id="start-battle-btn" class="menu-btn">Enter Battle</button>
+            <button id="open-deck-btn" class="menu-btn">Manage Deck</button>
+            <button id="open-shop-btn" class="menu-btn">Trade (Shop)</button>
+            <button id="exit-btn" class="menu-btn">Exit</button>
+        </div>
+    </div>
+
+    <!-- SHOP SCREEN -->
+    <div id="shop-screen" class="screen hidden">
+        <h2>The Trader</h2>
+        <div class="shop-split">
+            <div id="shop-buy-area">
+                <h3>Buy Cards</h3>
+                <div id="shop-cards" class="card-grid"></div>
+            </div>
+            <div id="shop-sell-area">
+                <h3>Sell Your Cards</h3>
+                <div id="sell-cards" class="card-grid"></div>
+            </div>
+        </div>
+        <button id="shop-back-btn" class="back-btn">Back</button>
+    </div>
+
+    <!-- DECK SCREEN -->
+    <div id="deck-screen" class="screen hidden">
+        <h2>Your Deck</h2>
+        <div id="deck-grid" class="card-grid"></div>
+        <button id="deck-back-btn" class="back-btn">Back</button>
+    </div>
+
+    <!-- GAME CONTAINER -->
+    <div id="game-container" class="screen hidden">
+        <div id="game-layout">
+            <!-- Left: Draw Piles -->
+            <div id="game-left">
+                <div class="draw-pile" id="main-deck-pile">
+                    <div class="deck-count" id="deck-count-display">0</div>
+                    <span>Deck</span>
+                </div>
+                <div class="draw-pile" id="squirrel-pile">
+                    <div class="deck-count" id="squirrel-count-display">10</div>
+                    <span>Squirrels</span>
+                </div>
+            </div>
+
+            <!-- Center: Board -->
+            <div id="game-center">
+                <div id="opponent-area">
+                    <div id="opponent-queue" class="row"></div>
+                    <div id="opponent-slots" class="row"></div>
+                </div>
+
+                <div id="center-row">
+                    <!-- Damage Scale / Table Props -->
+                    <div id="scale-container">
+                        <div id="scale-indicator">Scale: 0</div>
+                    </div>
+                </div>
+
+                <div id="player-area">
+                    <div id="player-slots" class="row"></div>
+                    <div id="player-hand" class="row"></div>
+                </div>
+            </div>
+
+            <!-- Right: Bell & Tools -->
+            <div id="game-right">
+                <button id="end-turn-btn">Ring Bell</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- POST GAME MODAL -->
+    <div id="post-game-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2 id="post-game-title">Result</h2>
+            <p id="post-game-message"></p>
+            <div class="modal-actions">
+                <button id="continue-btn" class="menu-btn">Continue (New Battle)</button>
+                <button id="return-home-btn" class="menu-btn">Return Home</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Main Module -->
+    <script type="module" src="src/main.js"></script>
+</body>
+
+</html>

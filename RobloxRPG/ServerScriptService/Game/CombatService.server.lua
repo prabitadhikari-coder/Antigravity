@@ -19,7 +19,14 @@ function CombatService:ApplyDamage(attacker, target, context)
     -- context: {Base, Element, IsCrit}
     
     -- Validator: Check distances (Server-Side)
-    local char1 = attacker.Character
+    -- Validator: Check distances (Server-Side)
+    local char1
+    if attacker:IsA("Player") then
+        char1 = attacker.Character
+    elseif attacker:IsA("Model") then
+        char1 = attacker
+    end
+
     local char2 = target.Parent -- Assuming target is Humanoid, parent is Character
     if not char1 or not char2 then return end
     
@@ -32,9 +39,15 @@ function CombatService:ApplyDamage(attacker, target, context)
     local dmg = context.Base
     
     -- 1. Apply Elemental Multiplier
-    local targetElement = target.Parent:GetAttribute("Element") or "Physical"
-    local magicMult = MagicService:GetMultiplier(context.Element, targetElement)
-    dmg = dmg * magicMult
+    -- 1. Apply Elemental Multiplier & Polar Interaction
+    local mult, status = MagicService:GetInteractionResult(attacker, target, context.Element)
+    dmg = dmg * mult
+    
+    if status == "Negated" or status == "Clash Null" then
+        -- Feedback for negation
+         CombatRemote:FireAllClients("CombatText", target.Parent, "BLOCKED!", Color3.fromRGB(150, 150, 150))
+         return -- No damage deals
+    end
     
     -- 2. Apply CombatMath (Crit/Mitigation)
     -- Assuming target has attributes for stats, or we fetch from DataService if Player
@@ -70,7 +83,17 @@ CombatRemote.OnServerEvent:Connect(function(player, action, ...)
     local args = {...}
     if action == "Attack" then
         local target = args[1]
+        
+        -- 1. Rate Limit & Type Check (RemoteGuard)
         if not RemoteGuard:Validate(player, "Attack", {target}, {"Instance"}) then return end
+        
+        -- 2. Explicit Cooldown Check (Gameplay Logic)
+        local lastAttack = player:GetAttribute("LastAttack") or 0
+        local now = os.clock()
+        if now - lastAttack < 0.5 then -- Global 0.5s cooldown for basic attacks
+            return 
+        end
+        player:SetAttribute("LastAttack", now)
         
         -- Simplified Base Damage calculation from Player Stats
         local baseDmg = 10 

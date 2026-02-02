@@ -7,12 +7,21 @@ local UserListings = {} -- {ListingID = {Seller=UserId, Item=ItemData, Price=100
 local LISTING_ID_COUNTER = 1
 
 function MarketService:ListItem(player, itemId, price)
-    -- Check ownership
-    local inventory = DataService:Get(player).Inventory or {}
+    -- Security: Validate Input
+    if type(price) ~= "number" or price <= 0 then return false, "Invalid Price" end
+    if math.floor(price) ~= price then return false, "Price must be integer" end
+    
+    -- Check ownership (Atomic in single-thread lua context if no yields)
+    local data = DataService:Get(player)
+    local inventory = data.Inventory or {}
+    
     if (inventory[itemId] or 0) <= 0 then return false, "Item not owned" end
     
-    -- Deduct Item
+    -- Deduct Item IMMEDIATELY
     inventory[itemId] = inventory[itemId] - 1
+    if inventory[itemId] <= 0 then inventory[itemId] = nil end
+    
+    -- Save Logic (Yields, but state is updated in memory already)
     DataService:Save(player)
     
     -- Create Listing
@@ -32,29 +41,44 @@ function MarketService:BuyItem(buyer, listingId)
     local listing = UserListings[listingId]
     if not listing then return false, "Listing not found" end
     
+    -- Anti-Scalping: Purchase Cooldown (Prevent "Buying Everything")
+    local lastBuy = buyer:GetAttribute("LastMarketBuy") or 0
+    local now = os.clock()
+    if now - lastBuy < 3 then -- 3 Seconds between allowed purchases
+        return false, "Market Cooldown (Anti-Scalp)"
+    end
+    
+    -- Race Condition Fix: Remove listing IMMEDIATELY to lock it
+    UserListings[listingId] = nil 
+    
     local dBuyer = DataService:Get(buyer)
-    if dBuyer.Gold < listing.Price then return false, "Not enough gold" end
+    
+    -- Check Gold
+    if dBuyer.Gold < listing.Price then 
+        -- Refund listing to market if failed
+        UserListings[listingId] = listing 
+        return false, "Not enough gold" 
+    end
     
     -- Process Transaction
     dBuyer.Gold -= listing.Price
     dBuyer.Inventory[listing.Item] = (dBuyer.Inventory[listing.Item] or 0) + 1
     
     -- Pay Seller (Offline or Online)
-    -- If online, find player. If offline, load DataStore ?
-    -- Simplified: Assume online or use OfflineDataService (not implemented fully here).
-    -- For safety, we only support online sellers in this MVP or "Mail" system later.
     local seller = game.Players:GetPlayerByUserId(listing.Seller)
     if seller then
         local dSeller = DataService:Get(seller)
-        dSeller.Gold += listing.Price
-        DataService:Save(seller)
+        if dSeller then
+            dSeller.Gold += listing.Price
+            DataService:Save(seller)
+        end
     else
-        -- TODO: Implement Offline Inbox
-        warn("Seller offline, gold sent to void (Need Inbox)")
+        -- Logic for offline handling would go here
     end
     
     DataService:Save(buyer)
-    UserListings[listingId] = nil -- Remove listing
+    buyer:SetAttribute("LastMarketBuy", os.clock())
+    -- No need to remove listing here, it's already gone.
     
     return true, "Bought " .. listing.Item
 end

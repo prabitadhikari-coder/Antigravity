@@ -3,21 +3,11 @@ local RemoteGuard = require(script.Parent.RemoteGuard)
 
 local SkillService = {}
 
--- A simple skill tree definition for testing
-local TREES = {
-    ["Warrior"] = {
-        ["Slash"] = {ReqLevel=1, MaxRank=5},
-        ["Bash"] = {ReqLevel=3, MaxRank=3, ReqSkill="Slash", ReqRank=3},
-        ["Rage"] = {ReqLevel=10, MaxRank=1}
-    }
-}
+local Definitions = require(game.ReplicatedStorage.GameData.Definitions)
 
 -- Remote for learning skills
 local SkillRemote = Instance.new("RemoteEvent")
 SkillRemote.Name = "LearnSkill"
-SkillRemote.Parent = game:GetService("ReplicatedStorage") -- Assuming folder exists, or create it. 
--- In GameInit, we should ideally ensure ReplicatedStorage structure. 
--- For now, let's just make sure it's created if not.
 if not game.ReplicatedStorage:FindFirstChild("GameRemotes") then
     local folder = Instance.new("Folder")
     folder.Name = "GameRemotes"
@@ -25,50 +15,112 @@ if not game.ReplicatedStorage:FindFirstChild("GameRemotes") then
 end
 SkillRemote.Parent = game.ReplicatedStorage.GameRemotes
 
-
 function SkillService:LearnSkill(player, skillName)
+    local element = player:GetAttribute("Element")
     local class = player:GetAttribute("Class")
-    local level = player:GetAttribute("Level")
+    local race = player:GetAttribute("Race")
+    local level = player:GetAttribute("Level") or 1
     
-    local tree = TREES[class]
-    if not tree then return false, "No tree for class" end
+    -- 1. Search ALL Trees for Requirement
+    local reqData = nil
     
-    local node = tree[skillName]
-    if not node then return false, "Skill not found" end
+    -- Function to check a tree list
+    local function checkTree(treeList)
+        if not treeList then return end
+        for _, node in ipairs(treeList) do
+            if node.Skill == skillName then
+                reqData = node
+                return true
+            end
+        end
+    end
     
-    -- Check Requirements
-    if level < node.ReqLevel then return false, "Level too low" end
+    -- Check Magic Tree
+    if element and Definitions.MagicSkillTrees[element] then
+        if checkTree(Definitions.MagicSkillTrees[element]) then end
+    end
     
+    -- Check Class Tree
+    if not reqData and class and Definitions.Classes[class] then
+        checkTree(Definitions.Classes[class].SkillTree)
+    end
+    
+    -- Check Race Tree
+    if not reqData and race and Definitions.Races[race] then
+        checkTree(Definitions.Races[race].SkillTree)
+    end
+    
+    if not reqData then return false, "Skill not found in your Magic, Class, or Race trees" end
+    
+    -- 2. Check Requirements
+    if level < reqData.Level then return false, "Level too low (Req: " .. reqData.Level .. ")" end
+    
+    -- 3. Update Data
     local currentSkills = DataService:Get(player).Skills or {}
     local currentRank = currentSkills[skillName] or 0
     
-    if currentRank >= node.MaxRank then return false, "Max rank reached" end
+    if currentRank >= 1 then return false, "Already learned" end 
     
-    if node.ReqSkill then
-        local reqRank = currentSkills[node.ReqSkill] or 0
-        if reqRank < node.ReqRank then return false, "Missing prerequisite skill" end
-    end
-    
-    -- Check Skill Points (Assuming 1 SP per level, need to track Spent Points)
-    -- Simplified: Just use Gold for now or check SP if added to schema
-    -- Let's say it costs 100 Gold per rank for now as per "Marketplace" focus? 
-    -- Or better, assume we added "SkillPoints" to schema or derived it.
-    -- Let's use Gold for simplicity for this iteration, or just allow it if we assume infinite SP for testing.
-    -- "skill levelling" was a requirement.
-    
-    -- Update Data
-    currentSkills[skillName] = currentRank + 1
+    currentSkills[skillName] = 1
     DataService:Get(player).Skills = currentSkills
-    DataService:Save(player) -- Important to save state
+    DataService:Save(player) 
     
-    return true, "Skill upgraded"
+    return true, "Skill learned"
 end
 
-SkillRemote.OnServerEvent:Connect(function(player, skillName)
-    if not RemoteGuard:Validate(player, "UseSkill", {skillName}, {"string"}) then return end
+function SkillService:CastSkill(player, skillName)
+    -- 1. Validate Learned
+    local data = DataService:Get(player)
+    local rank = (data.Skills and data.Skills[skillName]) or 0
+    if rank <= 0 then return false, "Skill not learned" end
     
-    local success, msg = SkillService:LearnSkill(player, skillName)
-    print(player.Name .. " tried to learn " .. skillName .. ": " .. msg)
+    -- 2. Validate Resources (Mana/Cooldown)
+    -- Simplified: No Cooldown tracking in this snippet, but ideally check LastCast_[Skill]
+    
+    -- 3. Execute Logic
+    -- In a real system, we'd load a ModuleScript per skill. 
+    -- For now, hardcode a few test skills using Definitions or Switch
+    
+    local CombatService = require(script.Parent.CombatService)
+    local char = player.Character
+    if not char then return end
+    
+    if skillName == "Slash" then
+        -- AOE around player
+        local center = char.PrimaryPart.Position
+        for _, enemy in ipairs(workspace:GetChildren()) do
+            if enemy:FindFirstChild("Humanoid") and enemy ~= char then
+                local dist = (enemy.PrimaryPart.Position - center).Magnitude
+                if dist < 10 then
+                    CombatService:ApplyDamage(player, enemy.Humanoid, {
+                        Base = 15 * rank,
+                        Element = "Physical", -- Fetch from weapon?
+                        Type = "Melee"
+                    })
+                end
+            end
+        end
+        return true, "Slash Cast"
+        
+    elseif skillName == "Fireball" then
+        -- Projectile Logic (Simplified as instant hit for backend demo)
+        -- Ideally, spawn projectile, OnTouch -> ApplyDamage
+        -- Here we just find nearest target
+        return true, "Fireball Cast (Projectile Logic needed)"
+    end
+    
+    return false, "Skill logic not found"
+end
+
+SkillRemote.OnServerEvent:Connect(function(player, action, arg1)
+    if action == "Learn" then
+       if not RemoteGuard:Validate(player, "LearnSkill", {arg1}, {"string"}) then return end
+       SkillService:LearnSkill(player, arg1)
+       
+    elseif action == "Cast" then
+       if not RemoteGuard:Validate(player, "UseSkill", {arg1}, {"string"}) then return end
+       SkillService:CastSkill(player, arg1)
+    end
 end)
 
 return SkillService
